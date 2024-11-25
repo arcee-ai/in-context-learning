@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+vector_store/
+.pytest_cache/
+*.db
