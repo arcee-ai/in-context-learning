@@ -9,7 +9,7 @@ class Config:
         ("mlabonne/orca-agentinstruct-1M-v1-cleaned", "default"),
         ("HuggingFaceTB/smoltalk", "all"),
     ]
-    experiment_dataset = "lmsys/lmsys-chat-1m"
+    experiment_dataset = "allenai/tulu-3-sft-mixture"
 
     # Database configurations
     vector_db_path = "vector_store"
@@ -17,9 +17,9 @@ class Config:
     results_db_path = "sqlite:///results.db"
 
     # Model configurations
-    embedding_model = "BAAI/bge-small-en-v1.5"
+    embedding_model = "BAAI/bge-large-en-v1.5"
     llm_model = "/media/teamgroup/models/Qwen2.5-3B-Instruct"
-    reward_model = "/media/teamgroup/models/internlm2-1_8b-reward"
+    reward_model = "/media/teamgroup/models/internlm2-7b-reward"
     pairwise_ranker = "mlabonne/pairRM"
 
     # Experiment parameters
