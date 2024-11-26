@@ -6,7 +6,7 @@ class Config:
     reference_datasets = [
         ("mlabonne/orca-agentinstruct-1M-v1-cleaned", "default"),
     ]
-    experiment_dataset = "HuggingFaceTB/smoltalk"
+    experiment_dataset = ("HuggingFaceTB/smoltalk", "default")
 
     # Database configurations
     vector_db_path = "vector_store"

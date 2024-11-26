@@ -25,4 +25,5 @@ class DataLoader:
         return qa_pairs
 
     def load_experiment_dataset(self):
-        return load_dataset(self.config.experiment_dataset, split="train")
+        dataset_name, config = self.config.experiment_dataset
+        return load_dataset(dataset_name, config, split="train")
