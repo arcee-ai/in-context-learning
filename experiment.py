@@ -129,7 +129,7 @@ class OptimizedExperiment:
         with_context_answer = item.with_context_answer
         without_context_answer = item.without_context_answer
 
-        if len(with_context_answer) < 5000 or len(without_context_answer) < 5000:
+        if len(with_context_answer) > 7000 or len(without_context_answer) > 7000:
             return
 
         # Compare responses
