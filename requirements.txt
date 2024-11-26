@@ -65,6 +65,7 @@ langchain-huggingface==0.1.2
 langchain-text-splitters==0.3.2
 langsmith==0.1.145
 lark==1.2.2
+llm_blender @ git+https://github.com/yuchenlin/LLM-Blender.git@33204d2712944b6b17996f7c079e74cd963ccc7c
 llvmlite==0.43.0
 lm-format-enforcer==0.10.9
 markdown-it-py==3.0.0

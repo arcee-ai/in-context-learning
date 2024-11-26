@@ -1,7 +1,16 @@
-from sqlalchemy import create_engine, Column, Integer, String, JSON, Float, Boolean
+from sqlalchemy import (
+    Sequence,
+    create_engine,
+    Column,
+    Integer,
+    String,
+    JSON,
+    Float,
+    Boolean,
+    select,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import chromadb
 from typing import List, Dict, Tuple
 from config import Config
 from langchain_chroma import Chroma
@@ -22,12 +31,14 @@ class Result(Base):
     __tablename__ = "results"
     id = Column(Integer, primary_key=True)
     question = Column(String)
+    context_score = Column(Float)
     context_qa = Column(JSON)
     with_context_answer = Column(String)
     without_context_answer = Column(String)
     with_context_score = Column(Float)
     without_context_score = Column(Float)
     with_context_better = Column(Boolean)
+    processed = Column(Boolean)
 
 
 class DatabaseManager:
@@ -59,14 +70,39 @@ class DatabaseManager:
             documents=docs,
         )
 
-    def find_similar_question(self, question: str) -> Tuple[str, str]:
-        results = self.connection.similarity_search(question, k=1)
+    def find_similar_question(self, question: str) -> Tuple[str, str, float]:
+        results = self.connection.similarity_search_with_relevance_scores(question, k=1)
 
-        return results[0].page_content, results[0].metadata["answer"]
+        return (
+            results[0][0].page_content,
+            results[0][0].metadata["answer"],
+            results[0][1],
+        )
 
     def store_result(self, result: Dict):
         Session = sessionmaker(bind=self.results_engine)
         with Session() as session:
             result_record = Result(**result)
             session.add(result_record)
+            session.commit()
+
+    def retrieve_results(self) -> Sequence[Result]:
+        Session = sessionmaker(bind=self.results_engine)
+
+        with Session() as session:
+            unprocessed_results = session.execute(select(Result)).scalars().all()
+
+        return unprocessed_results
+
+    def update_result(self, filter: int, scores: List[int]):
+        Session = sessionmaker(bind=self.results_engine)
+        with Session() as session:
+            session.query(Result).filter(Result.id == filter).update(
+                {
+                    "with_context_score": scores[0],
+                    "without_context_score": scores[1],
+                    "with_context_better": scores[0] > scores[1],
+                    "processed": True,
+                }
+            )
             session.commit()

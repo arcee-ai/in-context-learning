@@ -1,13 +1,11 @@
 from typing import Dict, Generator, Iterable, List, Tuple
 import tqdm
 from config import Config
-from database import DatabaseManager
+from database import DatabaseManager, Result
 from model_manager import ModelManager
 from data_loader import DataLoader
 from itertools import islice
 from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor
-import asyncio
 
 
 @dataclass
@@ -15,6 +13,7 @@ class ExperimentItem:
     question: str
     similar_question: str
     similar_answer: str
+    score: float
 
 
 class OptimizedExperiment:
@@ -71,17 +70,19 @@ class OptimizedExperiment:
 
         return with_context_prompts, without_context_prompts
 
-    async def process_batch(self, batch: List[Dict]) -> None:
-        # Prepare experiment items with similar questions
+    async def process_generation(self, batch: List[Dict]) -> None:
         items = []
         for item in batch:
-            question = item["conversation"][0]["content"]
-            similar_q, similar_a = self.db_manager.find_similar_question(question)
+            question = item["messages"][0]["content"]
+            similar_q, similar_a, score = self.db_manager.find_similar_question(
+                question
+            )
             items.append(
                 ExperimentItem(
                     question=question,
                     similar_question=similar_q,
                     similar_answer=similar_a,
+                    score=score,
                 )
             )
 
@@ -105,53 +106,61 @@ class OptimizedExperiment:
             with_context_answer = with_context.outputs[0].text
             without_context_answer = without_context.outputs[0].text
 
-            # Prepare messages for scoring
-            context_message = [
-                {"role": "user", "content": item.question},
-                {"role": "assistant", "content": with_context_answer},
-            ]
-            no_context_message = [
-                {"role": "user", "content": item.question},
-                {"role": "assistant", "content": without_context_answer},
-            ]
-
-            # Compare responses
-            scores = self.model_manager.compare_responses(
-                context_message, no_context_message
-            )
-
             # Store results
             self.db_manager.store_result(
                 {
                     "question": item.question,
+                    "context_score": item.score,
                     "context_qa": {
                         "question": item.similar_question,
                         "answer": item.similar_answer,
                     },
                     "with_context_answer": with_context_answer,
                     "without_context_answer": without_context_answer,
-                    "with_context_score": scores[0],
-                    "without_context_score": scores[1],
-                    "with_context_better": scores[0] > scores[1],
+                    "with_context_score": None,
+                    "without_context_score": None,
+                    "with_context_better": None,
+                    "processed": False,
                 }
             )
+
+    async def score_and_update(self, item: Result) -> None:
+        question = item.question
+        with_context_answer = item.with_context_answer
+        without_context_answer = item.without_context_answer
+
+        if len(with_context_answer) < 5000 or len(without_context_answer) < 5000:
+            return
+
+        # Compare responses
+        scores = self.model_manager.compare_responses(
+            question, with_context_answer, without_context_answer
+        )
+
+        # Update the existing record with scores
+        self.db_manager.update_result(item.id, scores)
 
     async def run(self):
         # Load experiment dataset
         experiment_data = self.data_loader.load_experiment_dataset()
+
+        self.model_manager.load_model()
         # Process in batches
         tasks = []
         for batch in tqdm.tqdm(
             self.batch_items(experiment_data, self.batch_size),
-            desc="Processing batches",
+            desc="Generating",
             total=(len(experiment_data) + self.batch_size - 1) // self.batch_size,
         ):
-            task = asyncio.create_task(self.process_batch(batch))
-            tasks.append(task)
-            if len(tasks) >= 3:  # Limit concurrent batches to avoid OOM
-                await asyncio.gather(*tasks)
-                tasks = []
+            await self.process_generation(batch)
 
-        # Process any remaining tasks
-        if tasks:
-            await asyncio.gather(*tasks)
+        self.model_manager.unload_model()
+
+        self.model_manager.load_ranker()
+
+        items = self.db_manager.retrieve_results()
+
+        for item in tqdm.tqdm(items, desc="Ranking", total=len(items)):
+            await self.score_and_update(item)
+
+        self.model_manager.unload_ranker()
