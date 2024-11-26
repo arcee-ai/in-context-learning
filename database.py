@@ -20,13 +20,6 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 Base = declarative_base()
 
 
-class Answer(Base):
-    __tablename__ = "answers"
-    id = Column(Integer, primary_key=True)
-    question_id = Column(String)
-    answer = Column(String)
-
-
 class Result(Base):
     __tablename__ = "results"
     id = Column(Integer, primary_key=True)

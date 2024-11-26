@@ -146,7 +146,6 @@ class OptimizedExperiment:
 
         self.model_manager.load_model()
         # Process in batches
-        tasks = []
         for batch in tqdm.tqdm(
             self.batch_items(experiment_data, self.batch_size),
             desc="Generating",
